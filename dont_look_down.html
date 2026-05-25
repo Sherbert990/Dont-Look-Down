@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Don't Look Down</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05051a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
+#wrapper { position: relative; width: 680px; max-width: 100vw; }
+canvas { display: block; width: 100%; background: #050520; border-radius: 12px; }
+#ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
+#scoreDisplay { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.5); color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; }
+#startScreen, #gameOverScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(10,10,30,0.88); color: #fff; z-index: 10; border-radius: 12px; }
+#startScreen h1, #gameOverScreen h1 { font-size: 28px; font-weight: 500; margin-bottom: 8px; }
+#startScreen p, #gameOverScreen p { font-size: 14px; color: #aaa; margin-bottom: 8px; }
+.gBtn { background: #185FA5; color: #fff; border: none; border-radius: 8px; padding: 10px 28px; font-size: 15px; cursor: pointer; margin-top: 12px; }
+.gBtn:hover { background: #0C447C; }
+#controls { display: flex; justify-content: space-between; padding: 8px 12px; background: rgba(10,10,30,0.7); border-radius: 0 0 12px 12px; width: 680px; max-width: 100vw; }
+.ctrlBtn { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 10px 24px; font-size: 18px; cursor: pointer; user-select: none; }
+.ctrlBtn:active { background: rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <canvas id="gameCanvas" width="680" height="420"></canvas>
+  <div id="ui"><div id="scoreDisplay">Height: 0m</div></div>
+  <div id="startScreen">
+    <h1>Don't Look Down</h1>
+    <p>Climb the platforms — collect stars — don't fall!</p>
+    <p style="font-size:12px;color:#777">Arrow keys / WASD to move &amp; jump</p>
+    <button class="gBtn" id="startBtn">Play</button>
+  </div>
+  <div id="gameOverScreen" style="display:none">
+    <h1>You fell!</h1>
+    <p id="finalScore">Height: 0m</p>
+    <p id="finalCoins">Stars: 0</p>
+    <button class="gBtn" id="restartBtn">Play again</button>
+  </div>
+</div>
+<div id="controls">
+  <button class="ctrlBtn" id="leftBtn">◀</button>
+  <button class="ctrlBtn" id="jumpBtn">▲ Jump</button>
+  <button class="ctrlBtn" id="rightBtn">▶</button>
+</div>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = 680, H = 420;
+const GRAVITY = 0.45, JUMP = -10.5, SPEED = 4;
+const COLORS = ['#378ADD','#185FA5','#0C447C','#85B7EB','#B5D4F4','#042C53','#4a90d9'];
+let game, keys = {}, touchLeft = false, touchRight = false, touchJump = false;
+
+function initGame() {
+  const platforms = [];
+  platforms.push({ x: W/2-80, y: H-60, w: 160, h: 12, color: '#378ADD' });
+  for (let i = 1; i < 60; i++) {
+    const pw = 60 + Math.random() * 90;
+    const px = Math.random() * (W - pw);
+    const py = H - 60 - i * 78;
+    platforms.push({ x: px, y: py, w: pw, h: 12, color: COLORS[i % COLORS.length] });
+  }
+  const coins = [];
+  for (let i = 3; i < 60; i += 2) {
+    const p = platforms[i];
+    coins.push({ x: p.x + p.w/2 - 8, y: p.y - 28, collected: false });
+  }
+  game = {
+    player: { x: W/2-14, y: H-96, w: 28, h: 36, vx: 0, vy: 0, onGround: false, jumpsLeft: 2 },
+    platforms, coins, cameraY: 0, maxHeight: 0, score: 0, coinCount: 0, alive: true
+  };
+}
+
+function update() {
+  if (!game || !game.alive) return;
+  const p = game.player;
+  const left = keys['ArrowLeft']||keys['a']||keys['A']||touchLeft;
+  const right = keys['ArrowRight']||keys['d']||keys['D']||touchRight;
+  const jump = keys['ArrowUp']||keys['w']||keys['W']||keys[' ']||touchJump;
+
+  if (left) p.vx = -SPEED;
+  else if (right) p.vx = SPEED;
+  else p.vx *= 0.8;
+
+  if (jump && p.jumpsLeft > 0 && !game.prevJump) { p.vy = JUMP; if (!p.onGround) p.jumpsLeft--; p.onGround = false; }
+  game.prevJump = jump;
+
+  p.vy += GRAVITY;
+  p.x += p.vx;
+  p.y += p.vy;
+
+  if (p.x < 0) p.x = 0;
+  if (p.x + p.w > W) p.x = W - p.w;
+
+  p.onGround = false;
+  for (const pl of game.platforms) {
+    const py = pl.y - game.cameraY;
+    if (p.vy > 0 && p.x+p.w > pl.x && p.x < pl.x+pl.w && p.y+p.h > py && p.y+p.h < py+pl.h+14) {
+      p.y = py - p.h; p.vy = 0; p.onGround = true; p.jumpsLeft = 2;
+    }
+  }
+
+  if (p.y < H * 0.4) {
+    const diff = H * 0.4 - p.y;
+    game.cameraY -= diff; p.y += diff;
+    const h = Math.round(-game.cameraY / 10);
+    if (h > game.maxHeight) game.maxHeight = h;
+    game.score = game.maxHeight;
+  }
+
+  for (const c of game.coins) {
+    if (c.collected) continue;
+    const cy = c.y - game.cameraY;
+    if (p.x < c.x+16 && p.x+p.w > c.x && p.y < cy+16 && p.y+p.h > cy) {
+      c.collected = true; game.coinCount++;
+    }
+  }
+
+  document.getElementById('scoreDisplay').textContent = `Height: ${game.maxHeight}m  ★ ${game.coinCount}`;
+
+  if (p.y > H + 60) {
+    game.alive = false;
+    document.getElementById('finalScore').textContent = `Height: ${game.maxHeight}m`;
+    document.getElementById('finalCoins').textContent = `Stars collected: ${game.coinCount}`;
+    document.getElementById('gameOverScreen').style.display = 'flex';
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#020d1f'); grad.addColorStop(1, '#051e3e');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < 80; i++) {
+    const sx = (i * 137 + 23) % W;
+    const sy = ((i * 97 + 11 + Math.floor(game.cameraY * 0.05)) % H + H) % H;
+    ctx.fillStyle = `rgba(255,255,255,${0.15 + (i%4)*0.12})`;
+    ctx.fillRect(sx, sy, i%5===0?2:1, i%5===0?2:1);
+  }
+
+  for (const pl of game.platforms) {
+    const py = pl.y - game.cameraY;
+    if (py < -20 || py > H+20) continue;
+    ctx.fillStyle = pl.color;
+    ctx.beginPath(); ctx.roundRect(pl.x, py, pl.w, pl.h, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(pl.x+4, py+2, pl.w-8, 3);
+  }
+
+  for (const c of game.coins) {
+    if (c.collected) continue;
+    const cy = c.y - game.cameraY;
+    if (cy < -20 || cy > H+20) continue;
+    ctx.fillStyle = '#FAC775';
+    ctx.beginPath(); ctx.arc(c.x+8, cy+8, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#7a4e00'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('★', c.x+8, cy+12);
+  }
+
+  const p = game.player;
+  ctx.fillStyle = '#f0c060'; ctx.beginPath(); ctx.arc(p.x+p.w/2, p.y+10, 10, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#185FA5'; ctx.fillRect(p.x+3, p.y+18, p.w-6, 14);
+  ctx.fillStyle = '#0C447C'; ctx.fillRect(p.x+3, p.y+30, 10, 8); ctx.fillRect(p.x+p.w-13, p.y+30, 10, 8);
+  if (p.jumpsLeft === 1 && !p.onGround) {
+    ctx.fillStyle = 'rgba(100,180,255,0.5)'; ctx.beginPath(); ctx.arc(p.x+p.w/2, p.y+p.h/2, 18, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function loop() {
+  if (game && game.alive) { update(); draw(); }
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').onclick = () => { initGame(); document.getElementById('startScreen').style.display='none'; };
+document.getElementById('restartBtn').onclick = () => { initGame(); document.getElementById('gameOverScreen').style.display='none'; };
+document.addEventListener('keydown', e => { keys[e.key]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault(); });
+document.addEventListener('keyup', e => { keys[e.key]=false; });
+
+const lb=document.getElementById('leftBtn'), rb=document.getElementById('rightBtn'), jb=document.getElementById('jumpBtn');
+lb.addEventListener('touchstart',e=>{touchLeft=true;e.preventDefault();},{passive:false}); lb.addEventListener('touchend',()=>touchLeft=false);
+rb.addEventListener('touchstart',e=>{touchRight=true;e.preventDefault();},{passive:false}); rb.addEventListener('touchend',()=>touchRight=false);
+jb.addEventListener('touchstart',e=>{touchJump=true;e.preventDefault();},{passive:false}); jb.addEventListener('touchend',()=>touchJump=false);
+lb.addEventListener('mousedown',()=>touchLeft=true); lb.addEventListener('mouseup',()=>touchLeft=false);
+rb.addEventListener('mousedown',()=>touchRight=true); rb.addEventListener('mouseup',()=>touchRight=false);
+jb.addEventListener('mousedown',()=>touchJump=true); jb.addEventListener('mouseup',()=>touchJump=false);
+
+initGame(); loop();
+</script>
+</body>
+</html>
