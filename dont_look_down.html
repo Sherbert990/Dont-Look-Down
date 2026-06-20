@@ -58,6 +58,28 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 .histRow .gh { color: #2de2e6; font-weight: 700; width: 56px; text-align: right; }
 .toggleRow { display: flex; align-items: center; gap: 10px; margin: 14px 0 2px; color: #c9a9ff; font-size: 14px; max-width: 280px; cursor: pointer; }
 .toggleRow input { width: 18px; height: 18px; accent-color: #ff2e97; cursor: pointer; flex-shrink: 0; }
+.toggleRow.off { opacity: 0.4; cursor: not-allowed; }
+.toggleRow.off input { cursor: not-allowed; }
+#storeScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(13,2,33,0.96); color: #fff; z-index: 12; overflow-y: auto; padding: 20px 0; }
+#storeScreen h1 { font-size: 38px; font-weight: 700; margin-bottom: 4px; color: #ffe14d; text-shadow: 0 0 18px rgba(255,225,77,0.5); }
+.balance { font-size: 20px; color: #ffe14d; font-weight: 700; margin: 4px 0 8px; }
+.storeSection { font-size: 15px; color: #c9a9ff; font-weight: 600; letter-spacing: 0.5px; margin: 12px 0 4px; }
+#storeItems, #storeAvatars { width: 360px; max-width: 90vw; }
+.storeRow { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin: 6px 0; border-radius: 10px; background: rgba(125,42,232,0.18); }
+.storeRow .info { flex: 1; min-width: 0; }
+.storeRow .nm2 { font-weight: 700; color: #fff; font-size: 15px; }
+.storeRow .ds { color: #c9a9ff; font-size: 12px; }
+.storeRow .own { color: #2de2e6; font-size: 12px; font-weight: 600; }
+.buyBtn { background: #ff2e97; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: 0 0 12px rgba(255,46,151,0.4); }
+.buyBtn:hover { background: #c724b1; }
+.buyBtn:disabled { background: rgba(125,42,232,0.3); color: #8a7aa8; cursor: not-allowed; box-shadow: none; }
+.buyBtn.owned { background: rgba(45,226,230,0.25); color: #2de2e6; cursor: default; box-shadow: none; }
+#storeAvatars { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.avCard { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; border-radius: 12px; background: rgba(125,42,232,0.18); width: 104px; }
+.avCard .nm2 { font-size: 13px; font-weight: 700; }
+.avCard canvas { display: block; }
+#reviveBtn { background: #2de2e6; color: #0d0221; box-shadow: 0 0 20px rgba(45,226,230,0.6); }
+#reviveBtn:hover { background: #25c3c6; }
 </style>
 </head>
 <body>
@@ -97,14 +119,27 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
   <div id="startScreen" style="display:none">
     <h1>Don't Look Down</h1>
     <div id="startUser">Climbing as —</div>
-    <p>Climb the platforms — collect stars — don't fall!</p>
+    <div class="balance" id="startBalance">★ 0 stars</div>
     <p style="font-size:15px;color:#7d2ae8">Arrow keys / WASD to move &amp; jump</p>
+    <label class="toggleRow" id="hsRow"><input type="checkbox" id="useHeadStart"><span>Use Head Start (+50m) — <b id="hsCount">0</b> owned</span></label>
+    <label class="toggleRow" id="dbRow"><input type="checkbox" id="useDoubler"><span>Use Star Doubler (2× stars) — <b id="dbCount">0</b> owned</span></label>
     <button class="gBtn" id="startBtn">Play</button>
     <div class="topBtns">
+      <button class="gBtn secondary" id="storeBtn">Store</button>
       <button class="gBtn secondary" id="leaderboardBtn">Leaderboards</button>
       <button class="gBtn secondary" id="profileBtn">Profile</button>
       <button class="gBtn secondary" id="logoutBtn">Log out</button>
     </div>
+  </div>
+  <div id="storeScreen" style="display:none">
+    <h1>Store</h1>
+    <div class="balance" id="storeBalance">★ 0 stars</div>
+    <div class="storeSection">Power-ups</div>
+    <div id="storeItems"></div>
+    <div class="storeSection">Premium climbers</div>
+    <div id="storeAvatars"></div>
+    <div class="authErr" id="storeErr"></div>
+    <button class="gBtn secondary" id="storeBack">Back</button>
   </div>
   <div id="leaderboardScreen" style="display:none">
     <h1>Leaderboard</h1>
@@ -124,7 +159,10 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
       <button class="lbTab" data-tab="global">Global</button>
     </div>
     <div id="scoreHistory"></div>
-    <button class="gBtn" id="restartBtn">Play again</button>
+    <div class="topBtns">
+      <button class="gBtn" id="reviveBtn" style="display:none">Revive</button>
+      <button class="gBtn" id="restartBtn">Play again</button>
+    </div>
   </div>
 </div>
 <div id="controls">
@@ -161,7 +199,13 @@ const AVATARS = [
   { name:'Bot',   head:'#cdd6e0', body:'#8d99ae', legs:'#495057', shape:'square', face:'bot',   hat:'antenna' },
   { name:'Mint',  head:'#caffbf', body:'#21d19f', legs:'#168aad', shape:'round',  face:'smile', hat:'antenna' },
   { name:'Volt',  head:'#f72585', body:'#4361ee', legs:'#3a0ca3', shape:'square', face:'eyes',  hat:'headphones', hatColor:'#3a0ca3' },
+  // Premium avatars (store-only, indices 10+)
+  { name:'Nova',    head:'#fff7ad', body:'#ff8c00', legs:'#ff4d00', shape:'round',  face:'smile', hat:'crown',      hatColor:'#fff700', glow:'#ffb700' },
+  { name:'Phantom', head:'#1a1030', body:'#2b0a4a', legs:'#10001f', shape:'square', face:'eyes',  hat:'antenna',                     glow:'#b14dff' },
+  { name:'Aurora',  head:'#caffbf', body:'#2de2e6', legs:'#7d2ae8', shape:'round',  face:'smile', hat:'bow',        hatColor:'#ff2e97', glow:'#2de2e6' },
+  { name:'Cosmo',   head:'#e0c3fc', body:'#8e2de2', legs:'#4a00e0', shape:'square', face:'visor', hat:'headphones', hatColor:'#00f5d4', glow:'#f72585' },
 ];
+const PREMIUM_START = 10; // avatars at this index and beyond must be bought
 const AV_DARK = '#1a1030';
 let selectedAvatar = 0;
 
@@ -198,6 +242,14 @@ function drawHat(ctx, cx, cy, a) {
 
 function drawAvatar(ctx, x, y, w, h, a) {
   const cx = x + w/2, cy = y + 10;
+  if (a.glow) {
+    const g = ctx.createRadialGradient(cx, cy+8, 2, cx, cy+8, 26);
+    g.addColorStop(0, a.glow); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save(); ctx.globalAlpha = 0.55;
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy+8, 26, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
   ctx.fillStyle = a.legs;
   ctx.fillRect(x+3, y+30, 10, 8); ctx.fillRect(x+w-13, y+30, 10, 8);
   ctx.fillStyle = a.body;
@@ -307,11 +359,13 @@ function ensurePlatforms() {
   while (game.topY - game.cameraY > -H * 1.3) addPlatform();
 }
 
-function initGame() {
+function initGame(opts = {}) {
+  const heightBonus = opts.headStart ? 50 : 0;
   game = {
     player: { x: W/2-14, y: H-96, w: 28, h: 36, vx: 0, vy: 0, onGround: false, jumpsLeft: 2 },
-    platforms: [], coins: [], cameraY: 0, maxHeight: 0, score: 0, coinCount: 0, alive: true,
-    count: 0, topY: 0, originY: H * 0.4
+    platforms: [], coins: [], cameraY: 0, maxHeight: heightBonus, score: heightBonus, coinCount: 0, alive: true,
+    count: 0, topY: 0, originY: H * 0.4,
+    heightBonus, starMult: opts.doubler ? 2 : 1, savedStars: 0
   };
   ensurePlatforms();
 }
@@ -361,7 +415,7 @@ function update() {
   if (p.y < H * 0.4) {
     const diff = H * 0.4 - p.y;
     game.cameraY -= diff; p.y += diff;
-    const h = Math.round(-game.cameraY / 10);
+    const h = Math.round(-game.cameraY / 10) + game.heightBonus;
     if (h > game.maxHeight) game.maxHeight = h;
     game.score = game.maxHeight;
     ensurePlatforms();
@@ -373,7 +427,7 @@ function update() {
     if (c.collected) continue;
     const cy = c.y - game.cameraY;
     if (p.x < c.x+16 && p.x+p.w > c.x && p.y < cy+16 && p.y+p.h > cy) {
-      c.collected = true; game.coinCount++;
+      c.collected = true; game.coinCount += game.starMult;
     }
   }
 
@@ -385,6 +439,24 @@ function update() {
   }
 }
 
+function revivePlayer() {
+  const p = game.player;
+  let best = null, bestPy = Infinity;
+  for (const pl of game.platforms) {
+    if (pl.gone || pl.crumble) continue;
+    const py = pl.y - game.cameraY;
+    if (py > H * 0.2 && py < H * 0.85 && py < bestPy) { best = pl; bestPy = py; }
+  }
+  if (!best) {
+    best = { x: W/2 - 60, y: game.cameraY + H * 0.6, w: 120, h: 12, color: '#2de2e6' };
+    game.platforms.push(best);
+  }
+  p.x = best.x + best.w/2 - p.w/2;
+  p.y = (best.y - game.cameraY) - p.h;
+  p.vx = 0; p.vy = 0; p.jumpsLeft = 2; p.onGround = true;
+  game.alive = true;
+}
+
 let lastRun = { scores: [], currentId: null };
 async function endRun(height, stars) {
   document.getElementById('finalScore').textContent = `Height: ${height}m`;
@@ -394,9 +466,20 @@ async function endRun(height, stars) {
   const goTabs = document.getElementById('goTabs');
   const list = document.getElementById('scoreHistory');
   list.innerHTML = '<div class="histEmpty">Saving…</div>';
-  const r = await api('/api/score', { height, stars });
+  const newStars = Math.max(0, stars - (game.savedStars || 0));
+  const r = await api('/api/score', { height, stars: newStars });
+  game.savedStars = stars;
   lastRun = r.ok ? r.data : { scores: [], currentId: null };
+  if (r.ok && r.data.wallet) currentUser = r.data.wallet;
+  updateReviveBtn();
   showBoard(goTabs, list, 'personal', lastRun);
+}
+
+function updateReviveBtn() {
+  const btn = document.getElementById('reviveBtn');
+  const n = (currentUser && currentUser.revives) || 0;
+  btn.style.display = n > 0 ? 'inline-block' : 'none';
+  btn.textContent = `Revive (${n} left)`;
 }
 
 function lerpColor(a, b, t) {
@@ -494,11 +577,14 @@ function loop() {
 
 // Builds avatar thumbnails into a container. `getSel` returns the current index,
 // `onPick` is called with the chosen index.
-function buildPicker(container, getSel, onPick) {
+function buildPicker(container, getSel, onPick, indices) {
+  indices = indices || AVATARS.map((_, i) => i);
   container.innerHTML = '';
-  AVATARS.forEach((a, i) => {
+  indices.forEach(i => {
+    const a = AVATARS[i];
     const btn = document.createElement('button');
     btn.type = 'button';
+    btn.dataset.idx = i;
     btn.className = 'avBtn' + (i === getSel() ? ' sel' : '');
     btn.title = a.name;
     const cv = document.createElement('canvas');
@@ -510,10 +596,18 @@ function buildPicker(container, getSel, onPick) {
     btn.appendChild(cv);
     btn.onclick = () => {
       onPick(i);
-      container.querySelectorAll('.avBtn').forEach((b, j) => b.classList.toggle('sel', j === i));
+      container.querySelectorAll('.avBtn').forEach(b => b.classList.toggle('sel', +b.dataset.idx === i));
     };
     container.appendChild(btn);
   });
+}
+
+function baseIndices() { return Array.from({ length: PREMIUM_START }, (_, i) => i); }
+function ownedIndices() {
+  const owned = (currentUser && currentUser.ownedAvatars) || [];
+  const list = [];
+  for (let i = 0; i < AVATARS.length; i++) if (i < PREMIUM_START || owned.includes(i)) list.push(i);
+  return list;
 }
 
 async function api(path, body) {
@@ -526,7 +620,7 @@ async function api(path, body) {
 }
 
 // ---- Screen helpers ----
-const screens = ['authScreen', 'profileScreen', 'startScreen', 'gameOverScreen', 'leaderboardScreen'];
+const screens = ['authScreen', 'profileScreen', 'startScreen', 'storeScreen', 'gameOverScreen', 'leaderboardScreen'];
 function showScreen(id) {
   screens.forEach(s => document.getElementById(s).style.display = (s === id ? 'flex' : 'none'));
   document.getElementById('gameButtons').style.display = id ? 'none' : 'flex';
@@ -536,7 +630,21 @@ let currentUser = null; // { username, avatar }
 
 function enterStartScreen() {
   document.getElementById('startUser').textContent = 'Climbing as ' + currentUser.username;
+  refreshStartScreen();
   showScreen('startScreen');
+}
+
+function refreshStartScreen() {
+  const u = currentUser || {};
+  document.getElementById('startBalance').textContent = `★ ${u.stars || 0} stars`;
+  const hs = u.headStarts || 0, db = u.doublers || 0;
+  document.getElementById('hsCount').textContent = hs;
+  document.getElementById('dbCount').textContent = db;
+  const hsBox = document.getElementById('useHeadStart'), dbBox = document.getElementById('useDoubler');
+  hsBox.disabled = hs === 0; if (hs === 0) hsBox.checked = false;
+  dbBox.disabled = db === 0; if (db === 0) dbBox.checked = false;
+  document.getElementById('hsRow').classList.toggle('off', hs === 0);
+  document.getElementById('dbRow').classList.toggle('off', db === 0);
 }
 
 // ---- Auth screen ----
@@ -552,7 +660,7 @@ function setAuthMode(mode) {
   document.getElementById('authPickerWrap').style.display = signup ? 'block' : 'none';
   document.getElementById('authPass').autocomplete = signup ? 'new-password' : 'current-password';
   document.getElementById('authErr').textContent = '';
-  if (signup) buildPicker(document.getElementById('signupPicker'), () => signupAvatar, i => signupAvatar = i);
+  if (signup) buildPicker(document.getElementById('signupPicker'), () => signupAvatar, i => signupAvatar = i, baseIndices());
 }
 
 document.getElementById('authToggle').onclick = () => setAuthMode(authMode === 'login' ? 'signup' : 'login');
@@ -595,7 +703,7 @@ function openProfile() {
   document.getElementById('profileUser').value = currentUser.username;
   document.getElementById('profileShowName').checked = currentUser.showName !== false;
   document.getElementById('profileErr').textContent = '';
-  buildPicker(document.getElementById('profilePicker'), () => profileAvatar, i => profileAvatar = i);
+  buildPicker(document.getElementById('profilePicker'), () => profileAvatar, i => profileAvatar = i, ownedIndices());
   showScreen('profileScreen');
 }
 async function doLogout() {
@@ -620,8 +728,103 @@ document.getElementById('leaderboardBtn').onclick = () => {
 };
 document.getElementById('lbBack').onclick = () => enterStartScreen();
 
-document.getElementById('startBtn').onclick = () => { initGame(); showScreen(''); };
+document.getElementById('startBtn').onclick = async () => {
+  const u = currentUser || {};
+  const useHs = document.getElementById('useHeadStart').checked && (u.headStarts || 0) > 0;
+  const useDb = document.getElementById('useDoubler').checked && (u.doublers || 0) > 0;
+  if (useHs) { const r = await api('/api/use', { item: 'headstart' }); if (r.ok) currentUser = r.data; }
+  if (useDb) { const r = await api('/api/use', { item: 'doubler' }); if (r.ok) currentUser = r.data; }
+  initGame({ headStart: useHs, doubler: useDb });
+  showScreen('');
+};
 document.getElementById('restartBtn').onclick = () => enterStartScreen();
+
+document.getElementById('reviveBtn').onclick = async () => {
+  if (!((currentUser && currentUser.revives) > 0)) return;
+  const r = await api('/api/use', { item: 'revive' });
+  if (r.ok) currentUser = r.data;
+  revivePlayer();
+  showScreen('');
+};
+
+// ---- Store ----
+const STORE_ITEMS = [
+  { item: 'revive', name: 'Revive', price: 25, desc: 'Get back up after a fall', key: 'revives' },
+  { item: 'headstart', name: 'Head Start', price: 15, desc: 'Begin a run +50m up', key: 'headStarts' },
+  { item: 'doubler', name: 'Star Doubler', price: 20, desc: '2× stars for one run', key: 'doublers' },
+];
+const PREMIUM_PRICES = { 10: 60, 11: 80, 12: 100, 13: 120 };
+
+document.getElementById('storeBtn').onclick = () => { openStore(); };
+document.getElementById('storeBack').onclick = () => enterStartScreen();
+
+function openStore() {
+  document.getElementById('storeErr').textContent = '';
+  renderStore();
+  showScreen('storeScreen');
+}
+
+function renderStore() {
+  const u = currentUser || {};
+  const stars = u.stars || 0;
+  const owned = u.ownedAvatars || [];
+  document.getElementById('storeBalance').textContent = `★ ${stars} stars`;
+
+  const itemsEl = document.getElementById('storeItems');
+  itemsEl.innerHTML = '';
+  STORE_ITEMS.forEach(it => {
+    const row = document.createElement('div');
+    row.className = 'storeRow';
+    const have = u[it.key] || 0;
+    row.innerHTML = `<div class="info"><div class="nm2">${it.name}</div><div class="ds">${it.desc}</div>` +
+      `<div class="own">Owned: ${have}</div></div>`;
+    const btn = document.createElement('button');
+    btn.className = 'buyBtn';
+    btn.textContent = `★ ${it.price}`;
+    btn.disabled = stars < it.price;
+    btn.onclick = () => buy({ kind: 'item', item: it.item });
+    row.appendChild(btn);
+    itemsEl.appendChild(row);
+  });
+
+  const avEl = document.getElementById('storeAvatars');
+  avEl.innerHTML = '';
+  for (let i = PREMIUM_START; i < AVATARS.length; i++) {
+    const a = AVATARS[i], price = PREMIUM_PRICES[i];
+    const card = document.createElement('div');
+    card.className = 'avCard';
+    const cv = document.createElement('canvas');
+    cv.width = 56; cv.height = 76;
+    const c = cv.getContext('2d');
+    c.save(); c.translate(8, 14); c.scale(1.6, 1.6);
+    drawAvatar(c, 0, 0, 28, 36, a);
+    c.restore();
+    card.appendChild(cv);
+    const nm = document.createElement('div');
+    nm.className = 'nm2'; nm.textContent = a.name;
+    card.appendChild(nm);
+    const btn = document.createElement('button');
+    btn.className = 'buyBtn';
+    if (owned.includes(i)) {
+      btn.classList.add('owned'); btn.textContent = 'Owned'; btn.disabled = true;
+    } else {
+      btn.textContent = `★ ${price}`;
+      btn.disabled = stars < price;
+      btn.onclick = () => buy({ kind: 'avatar', avatar: i });
+    }
+    card.appendChild(btn);
+    avEl.appendChild(card);
+  }
+}
+
+async function buy(payload) {
+  const err = document.getElementById('storeErr');
+  err.textContent = '';
+  const r = await api('/api/store/buy', payload);
+  if (!r.ok) { err.textContent = r.data.error || 'Could not buy.'; return; }
+  currentUser = r.data;
+  renderStore();
+}
 
 setAuthMode('login');
 (async () => {

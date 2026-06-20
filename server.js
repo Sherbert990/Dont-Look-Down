@@ -79,6 +79,17 @@ function bestRun(user) {
   return runs.reduce((a, b) => (b.height > a.height || (b.height === a.height && b.stars > a.stars)) ? b : a);
 }
 
+const PREMIUM_AVATARS = { 10: 60, 11: 80, 12: 100, 13: 120 };
+const ITEM_PRICES = { revive: 25, headstart: 15, doubler: 20 };
+
+function publicUser(u) {
+  return {
+    username: u.username, avatar: u.avatar, showName: u.showName !== false,
+    stars: u.stars || 0, revives: u.revives || 0, headStarts: u.headStarts || 0,
+    doublers: u.doublers || 0, ownedAvatars: u.ownedAvatars || []
+  };
+}
+
 async function handleApi(req, res, urlPath) {
   if (urlPath === '/api/register' && req.method === 'POST') {
     const body = await readBody(req);
@@ -91,11 +102,11 @@ async function handleApi(req, res, urlPath) {
     if (users[key]) return sendJson(res, 409, { error: 'That username is taken.' });
     const salt = crypto.randomBytes(16).toString('hex');
     const avatar = cleanAvatar(body.avatar);
-    users[key] = { username, hash: hashPassword(password, salt), salt, avatar, showName: true, scores: [] };
+    users[key] = { username, hash: hashPassword(password, salt), salt, avatar, showName: true, scores: [], stars: 0, revives: 0, headStarts: 0, doublers: 0, ownedAvatars: [] };
     saveUsers(users);
     const token = makeToken();
     sessions.set(token, key);
-    return sendJson(res, 200, { username, avatar }, { 'Set-Cookie': sessionCookie(token, 60 * 60 * 24 * 30) });
+    return sendJson(res, 200, publicUser(users[key]), { 'Set-Cookie': sessionCookie(token, 60 * 60 * 24 * 30) });
   }
 
   if (urlPath === '/api/login' && req.method === 'POST') {
@@ -108,7 +119,7 @@ async function handleApi(req, res, urlPath) {
     if (!u || !verifyPassword(password, u)) return sendJson(res, 401, { error: 'Wrong username or password.' });
     const token = makeToken();
     sessions.set(token, key);
-    return sendJson(res, 200, { username: u.username, avatar: u.avatar }, { 'Set-Cookie': sessionCookie(token, 60 * 60 * 24 * 30) });
+    return sendJson(res, 200, publicUser(u), { 'Set-Cookie': sessionCookie(token, 60 * 60 * 24 * 30) });
   }
 
   if (urlPath === '/api/logout' && req.method === 'POST') {
@@ -120,7 +131,7 @@ async function handleApi(req, res, urlPath) {
   if (urlPath === '/api/me' && req.method === 'GET') {
     const me = currentUser(req);
     if (!me) return sendJson(res, 401, { error: 'Not signed in.' });
-    return sendJson(res, 200, { username: me.username, avatar: me.avatar, showName: me.showName });
+    return sendJson(res, 200, publicUser(loadUsers()[me.key]));
   }
 
   if (urlPath === '/api/profile' && req.method === 'POST') {
@@ -129,11 +140,13 @@ async function handleApi(req, res, urlPath) {
     const body = await readBody(req);
     const username = cleanUsername(body.username);
     if (!validUsername(username)) return sendJson(res, 400, { error: 'Username must be 1-20 letters, numbers, spaces or underscores.' });
-    const avatar = cleanAvatar(body.avatar);
     const newKey = username.toLowerCase();
     const users = loadUsers();
     if (newKey !== me.key && users[newKey]) return sendJson(res, 409, { error: 'That username is taken.' });
     const record = users[me.key];
+    const reqAvatar = parseInt(body.avatar, 10);
+    const owned = record.ownedAvatars || [];
+    const avatar = (reqAvatar >= 0 && reqAvatar <= 9) || owned.includes(reqAvatar) ? reqAvatar : cleanAvatar(body.avatar);
     record.username = username;
     record.avatar = avatar;
     if (typeof body.showName === 'boolean') record.showName = body.showName;
@@ -143,7 +156,7 @@ async function handleApi(req, res, urlPath) {
       for (const [tok, k] of sessions) if (k === me.key) sessions.set(tok, newKey);
     }
     saveUsers(users);
-    return sendJson(res, 200, { username, avatar, showName: record.showName !== false });
+    return sendJson(res, 200, publicUser(record));
   }
 
   if (urlPath === '/api/score' && req.method === 'POST') {
@@ -159,8 +172,9 @@ async function handleApi(req, res, urlPath) {
     record.scores.push(entry);
     record.scores.sort((a, b) => b.height - a.height || b.stars - a.stars);
     record.scores = record.scores.slice(0, 10);
+    record.stars = (record.stars || 0) + stars;
     saveUsers(users);
-    return sendJson(res, 200, { scores: record.scores, currentId: entry.id });
+    return sendJson(res, 200, { scores: record.scores, currentId: entry.id, wallet: publicUser(record) });
   }
 
   if (urlPath === '/api/leaderboard/personal' && req.method === 'GET') {
@@ -185,6 +199,66 @@ async function handleApi(req, res, urlPath) {
     }
     entries.sort((a, b) => b.height - a.height || b.stars - a.stars);
     return sendJson(res, 200, { entries: entries.slice(0, 20) });
+  }
+
+  if (urlPath === '/api/store/buy' && req.method === 'POST') {
+    const me = currentUser(req);
+    if (!me) return sendJson(res, 401, { error: 'Not signed in.' });
+    const body = await readBody(req);
+    const users = loadUsers();
+    const record = users[me.key];
+    record.stars = record.stars || 0;
+    record.ownedAvatars = record.ownedAvatars || [];
+
+    if (body.kind === 'avatar') {
+      const av = parseInt(body.avatar, 10);
+      const cost = PREMIUM_AVATARS[av];
+      if (!cost) return sendJson(res, 400, { error: 'Unknown avatar.' });
+      if (record.ownedAvatars.includes(av)) return sendJson(res, 409, { error: 'You already own that avatar.' });
+      if (record.stars < cost) return sendJson(res, 402, { error: 'Not enough stars.' });
+      record.stars -= cost;
+      record.ownedAvatars.push(av);
+      saveUsers(users);
+      return sendJson(res, 200, publicUser(record));
+    }
+
+    if (body.kind === 'item') {
+      const item = body.item;
+      const cost = ITEM_PRICES[item];
+      if (!cost) return sendJson(res, 400, { error: 'Unknown item.' });
+      if (record.stars < cost) return sendJson(res, 402, { error: 'Not enough stars.' });
+      record.stars -= cost;
+      if (item === 'revive') record.revives = (record.revives || 0) + 1;
+      else if (item === 'headstart') record.headStarts = (record.headStarts || 0) + 1;
+      else if (item === 'doubler') record.doublers = (record.doublers || 0) + 1;
+      saveUsers(users);
+      return sendJson(res, 200, publicUser(record));
+    }
+
+    return sendJson(res, 400, { error: 'Unknown purchase.' });
+  }
+
+  if (urlPath === '/api/use' && req.method === 'POST') {
+    const me = currentUser(req);
+    if (!me) return sendJson(res, 401, { error: 'Not signed in.' });
+    const body = await readBody(req);
+    const item = body.item;
+    const users = loadUsers();
+    const record = users[me.key];
+    if (item === 'revive') {
+      if (!(record.revives > 0)) return sendJson(res, 400, { error: 'No revives.' });
+      record.revives -= 1;
+    } else if (item === 'headstart') {
+      if (!(record.headStarts > 0)) return sendJson(res, 400, { error: 'No head starts.' });
+      record.headStarts -= 1;
+    } else if (item === 'doubler') {
+      if (!(record.doublers > 0)) return sendJson(res, 400, { error: 'No doublers.' });
+      record.doublers -= 1;
+    } else {
+      return sendJson(res, 400, { error: 'Unknown item.' });
+    }
+    saveUsers(users);
+    return sendJson(res, 200, publicUser(record));
   }
 
   return sendJson(res, 404, { error: 'Unknown endpoint.' });
