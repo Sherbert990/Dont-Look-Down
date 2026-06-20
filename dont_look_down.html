@@ -6,19 +6,20 @@
 <title>Don't Look Down</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #05051a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
-#wrapper { position: relative; width: 680px; max-width: 100vw; }
-canvas { display: block; width: 100%; background: #050520; border-radius: 12px; }
+html, body { height: 100%; overflow: hidden; }
+body { background: #160d29; font-family: sans-serif; }
+#wrapper { position: relative; width: 100vw; height: 100vh; }
+canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 #ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
-#scoreDisplay { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.5); color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; }
-#startScreen, #gameOverScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(10,10,30,0.88); color: #fff; z-index: 10; border-radius: 12px; }
-#startScreen h1, #gameOverScreen h1 { font-size: 28px; font-weight: 500; margin-bottom: 8px; }
-#startScreen p, #gameOverScreen p { font-size: 14px; color: #aaa; margin-bottom: 8px; }
-.gBtn { background: #185FA5; color: #fff; border: none; border-radius: 8px; padding: 10px 28px; font-size: 15px; cursor: pointer; margin-top: 12px; }
-.gBtn:hover { background: #0C447C; }
-#controls { display: flex; justify-content: space-between; padding: 8px 12px; background: rgba(10,10,30,0.7); border-radius: 0 0 12px 12px; width: 680px; max-width: 100vw; }
-.ctrlBtn { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 10px 24px; font-size: 18px; cursor: pointer; user-select: none; }
-.ctrlBtn:active { background: rgba(255,255,255,0.3); }
+#scoreDisplay { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(13,2,33,0.6); color: #2de2e6; padding: 6px 22px; border-radius: 20px; font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+#startScreen, #gameOverScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(13,2,33,0.9); color: #fff; z-index: 10; }
+#startScreen h1, #gameOverScreen h1 { font-size: 44px; font-weight: 700; margin-bottom: 12px; color: #ff2e97; text-shadow: 0 0 18px rgba(255,46,151,0.6); }
+#startScreen p, #gameOverScreen p { font-size: 18px; color: #c9a9ff; margin-bottom: 10px; }
+.gBtn { background: #ff2e97; color: #fff; border: none; border-radius: 10px; padding: 14px 40px; font-size: 19px; cursor: pointer; margin-top: 18px; box-shadow: 0 0 20px rgba(255,46,151,0.5); }
+.gBtn:hover { background: #c724b1; }
+#controls { position: absolute; bottom: 0; left: 0; display: flex; justify-content: space-between; padding: 14px 18px; width: 100%; z-index: 5; }
+.ctrlBtn { background: rgba(125,42,232,0.35); color: #fff; border: 1px solid rgba(45,226,230,0.4); border-radius: 12px; padding: 16px 36px; font-size: 24px; cursor: pointer; user-select: none; }
+.ctrlBtn:active { background: rgba(45,226,230,0.5); }
 </style>
 </head>
 <body>
@@ -28,7 +29,7 @@ canvas { display: block; width: 100%; background: #050520; border-radius: 12px; 
   <div id="startScreen">
     <h1>Don't Look Down</h1>
     <p>Climb the platforms — collect stars — don't fall!</p>
-    <p style="font-size:12px;color:#777">Arrow keys / WASD to move &amp; jump</p>
+    <p style="font-size:15px;color:#7d2ae8">Arrow keys / WASD to move &amp; jump</p>
     <button class="gBtn" id="startBtn">Play</button>
   </div>
   <div id="gameOverScreen" style="display:none">
@@ -46,14 +47,23 @@ canvas { display: block; width: 100%; background: #050520; border-radius: 12px; 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const W = 680, H = 420;
+let W = window.innerWidth, H = window.innerHeight;
 const GRAVITY = 0.45, JUMP = -10.5, SPEED = 4;
-const COLORS = ['#378ADD','#185FA5','#0C447C','#85B7EB','#B5D4F4','#042C53','#4a90d9'];
+const COLORS = ['#ff2e97','#c724b1','#7d2ae8','#2de2e6','#ff6ec7','#9b5de5','#f15bb5'];
 let game, keys = {}, touchLeft = false, touchRight = false, touchJump = false;
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+}
+window.addEventListener('resize', resize);
+resize();
 
 function initGame() {
   const platforms = [];
-  platforms.push({ x: W/2-80, y: H-60, w: 160, h: 12, color: '#378ADD' });
+  platforms.push({ x: W/2-80, y: H-60, w: 160, h: 12, color: '#2de2e6' });
   for (let i = 1; i < 60; i++) {
     const pw = 60 + Math.random() * 90;
     const px = Math.random() * (W - pw);
@@ -129,7 +139,7 @@ function update() {
 function draw() {
   ctx.clearRect(0, 0, W, H);
   const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, '#020d1f'); grad.addColorStop(1, '#051e3e');
+  grad.addColorStop(0, '#160d29'); grad.addColorStop(1, '#3b1d52');
   ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
   for (let i = 0; i < 80; i++) {
@@ -152,18 +162,18 @@ function draw() {
     if (c.collected) continue;
     const cy = c.y - game.cameraY;
     if (cy < -20 || cy > H+20) continue;
-    ctx.fillStyle = '#FAC775';
+    ctx.fillStyle = '#ffe14d';
     ctx.beginPath(); ctx.arc(c.x+8, cy+8, 7, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#7a4e00'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#8a2d6b'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('★', c.x+8, cy+12);
   }
 
   const p = game.player;
-  ctx.fillStyle = '#f0c060'; ctx.beginPath(); ctx.arc(p.x+p.w/2, p.y+10, 10, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#185FA5'; ctx.fillRect(p.x+3, p.y+18, p.w-6, 14);
-  ctx.fillStyle = '#0C447C'; ctx.fillRect(p.x+3, p.y+30, 10, 8); ctx.fillRect(p.x+p.w-13, p.y+30, 10, 8);
+  ctx.fillStyle = '#2de2e6'; ctx.beginPath(); ctx.arc(p.x+p.w/2, p.y+10, 10, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff2e97'; ctx.fillRect(p.x+3, p.y+18, p.w-6, 14);
+  ctx.fillStyle = '#9b5de5'; ctx.fillRect(p.x+3, p.y+30, 10, 8); ctx.fillRect(p.x+p.w-13, p.y+30, 10, 8);
   if (p.jumpsLeft === 1 && !p.onGround) {
-    ctx.fillStyle = 'rgba(100,180,255,0.5)'; ctx.beginPath(); ctx.arc(p.x+p.w/2, p.y+p.h/2, 18, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(45,226,230,0.5)'; ctx.beginPath(); ctx.arc(p.x+p.w/2, p.y+p.h/2, 18, 0, Math.PI*2); ctx.fill();
   }
 }
 
