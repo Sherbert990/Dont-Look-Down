@@ -20,6 +20,15 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 #controls { position: absolute; bottom: 0; left: 0; display: flex; justify-content: space-between; padding: 14px 18px; width: 100%; z-index: 5; }
 .ctrlBtn { background: rgba(125,42,232,0.35); color: #fff; border: 1px solid rgba(45,226,230,0.4); border-radius: 12px; padding: 16px 36px; font-size: 24px; cursor: pointer; user-select: none; }
 .ctrlBtn:active { background: rgba(45,226,230,0.5); }
+.histTitle { font-size: 16px; color: #c9a9ff; margin: 18px 0 6px; font-weight: 600; letter-spacing: 0.5px; }
+#scoreHistory { width: 340px; max-width: 86vw; max-height: 34vh; overflow-y: auto; }
+.histRow { display: flex; align-items: center; gap: 10px; padding: 7px 14px; margin: 5px 0; border-radius: 8px; background: rgba(125,42,232,0.18); color: #e8d9ff; font-size: 15px; }
+.histRow.current { background: rgba(255,46,151,0.28); color: #fff; box-shadow: 0 0 12px rgba(255,46,151,0.45); }
+.histRow .rank { color: #9b5de5; font-weight: 700; width: 30px; }
+.histRow .ht { font-weight: 600; flex: 1; }
+.histRow .st { color: #ffe14d; }
+.histRow .date { color: #8a7aa8; font-size: 12px; width: 44px; text-align: right; }
+.histEmpty { color: #8a7aa8; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -36,6 +45,8 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
     <h1>You fell!</h1>
     <p id="finalScore">Height: 0m</p>
     <p id="finalCoins">Stars: 0</p>
+    <div class="histTitle">Best climbs</div>
+    <div id="scoreHistory"></div>
     <button class="gBtn" id="restartBtn">Play again</button>
   </div>
 </div>
@@ -61,6 +72,30 @@ function paletteFor(zone) {
   return THEMES[((zone % THEMES.length) + THEMES.length) % THEMES.length].platforms;
 }
 let game, keys = {}, touchLeft = false, touchRight = false, touchJump = false;
+
+const SCORE_KEY = 'dld_scores';
+function loadScores() {
+  try { return JSON.parse(localStorage.getItem(SCORE_KEY)) || []; } catch (e) { return []; }
+}
+function recordScore(height, stars) {
+  const list = loadScores();
+  const entry = { height, stars, date: Date.now(), id: Date.now() + '-' + Math.random() };
+  list.push(entry);
+  list.sort((a, b) => b.height - a.height || b.stars - a.stars);
+  const top = list.slice(0, 10);
+  try { localStorage.setItem(SCORE_KEY, JSON.stringify(top)); } catch (e) {}
+  return { top, currentId: entry.id };
+}
+function renderHistory(top, currentId) {
+  const el = document.getElementById('scoreHistory');
+  if (!top.length) { el.innerHTML = '<div class="histEmpty">No climbs yet — this is your first!</div>'; return; }
+  el.innerHTML = top.map((s, i) => {
+    const d = new Date(s.date);
+    const date = (d.getMonth() + 1) + '/' + d.getDate();
+    const cls = s.id === currentId ? 'histRow current' : 'histRow';
+    return `<div class="${cls}"><span class="rank">#${i+1}</span><span class="ht">${s.height}m</span><span class="st">★ ${s.stars}</span><span class="date">${date}</span></div>`;
+  }).join('');
+}
 
 function resize() {
   W = window.innerWidth;
@@ -152,6 +187,8 @@ function update() {
     game.alive = false;
     document.getElementById('finalScore').textContent = `Height: ${game.maxHeight}m`;
     document.getElementById('finalCoins').textContent = `Stars collected: ${game.coinCount}`;
+    const { top, currentId } = recordScore(game.maxHeight, game.coinCount);
+    renderHistory(top, currentId);
     document.getElementById('gameOverScreen').style.display = 'flex';
   }
 }
