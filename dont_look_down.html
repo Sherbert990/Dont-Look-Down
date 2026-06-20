@@ -24,7 +24,7 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 .ctrlBtn { background: rgba(125,42,232,0.35); color: #fff; border: 1px solid rgba(45,226,230,0.4); border-radius: 12px; padding: 16px 36px; font-size: 24px; cursor: pointer; user-select: none; }
 .ctrlBtn:active { background: rgba(45,226,230,0.5); }
 .histTitle { font-size: 16px; color: #c9a9ff; margin: 18px 0 6px; font-weight: 600; letter-spacing: 0.5px; }
-#scoreHistory { width: 340px; max-width: 86vw; max-height: 34vh; overflow-y: auto; }
+#scoreHistory, #lbList { width: 340px; max-width: 86vw; max-height: 34vh; overflow-y: auto; }
 .histRow { display: flex; align-items: center; gap: 10px; padding: 7px 14px; margin: 5px 0; border-radius: 8px; background: rgba(125,42,232,0.18); color: #e8d9ff; font-size: 15px; }
 .histRow.current { background: rgba(255,46,151,0.28); color: #fff; box-shadow: 0 0 12px rgba(255,46,151,0.45); }
 .histRow .rank { color: #9b5de5; font-weight: 700; width: 30px; }
@@ -38,8 +38,8 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 .avBtn:hover { background: rgba(125,42,232,0.32); }
 .avBtn.sel { border-color: #ff2e97; background: rgba(255,46,151,0.15); box-shadow: 0 0 12px rgba(255,46,151,0.5); }
 .avBtn canvas { display: block; }
-#authScreen, #profileScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(13,2,33,0.95); color: #fff; z-index: 12; overflow-y: auto; }
-#authScreen h1, #profileScreen h1 { font-size: 38px; font-weight: 700; margin-bottom: 6px; color: #ff2e97; text-shadow: 0 0 18px rgba(255,46,151,0.6); }
+#authScreen, #profileScreen, #leaderboardScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(13,2,33,0.95); color: #fff; z-index: 12; overflow-y: auto; }
+#authScreen h1, #profileScreen h1, #leaderboardScreen h1 { font-size: 38px; font-weight: 700; margin-bottom: 6px; color: #ff2e97; text-shadow: 0 0 18px rgba(255,46,151,0.6); }
 #authScreen p, #profileScreen p { font-size: 16px; color: #c9a9ff; margin-bottom: 14px; }
 .field { width: 280px; max-width: 86vw; margin: 6px 0; }
 .field input { width: 100%; padding: 12px 14px; font-size: 16px; border-radius: 10px; border: 1px solid rgba(155,93,229,0.5); background: rgba(125,42,232,0.15); color: #fff; outline: none; }
@@ -49,7 +49,15 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 .gBtn.secondary { background: rgba(125,42,232,0.35); box-shadow: none; padding: 11px 26px; font-size: 16px; }
 .gBtn.secondary:hover { background: rgba(125,42,232,0.55); }
 #startUser { font-size: 20px; color: #2de2e6; font-weight: 600; margin-bottom: 4px; }
-.topBtns { display: flex; gap: 10px; margin-top: 10px; }
+.topBtns { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+.lbTabs { display: flex; gap: 8px; margin: 14px 0 8px; }
+.lbTab { background: rgba(125,42,232,0.18); color: #c9a9ff; border: 1px solid rgba(155,93,229,0.4); border-radius: 16px; padding: 7px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.lbTab.sel { background: #ff2e97; color: #fff; border-color: #ff2e97; }
+.histRow .nm { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.histRow .nm.anon { color: #8a7aa8; font-style: italic; }
+.histRow .gh { color: #2de2e6; font-weight: 700; width: 56px; text-align: right; }
+.toggleRow { display: flex; align-items: center; gap: 10px; margin: 14px 0 2px; color: #c9a9ff; font-size: 14px; max-width: 280px; cursor: pointer; }
+.toggleRow input { width: 18px; height: 18px; accent-color: #ff2e97; cursor: pointer; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -79,6 +87,7 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
     <div class="field"><input id="profileUser" type="text" placeholder="Username" maxlength="20"></div>
     <div class="pickTitle">Your climber</div>
     <div id="profilePicker"></div>
+    <label class="toggleRow"><input type="checkbox" id="profileShowName"><span>Show my username on the global leaderboard</span></label>
     <div class="authErr" id="profileErr"></div>
     <div class="topBtns">
       <button class="gBtn secondary" id="profileCancel">Back</button>
@@ -92,15 +101,28 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
     <p style="font-size:15px;color:#7d2ae8">Arrow keys / WASD to move &amp; jump</p>
     <button class="gBtn" id="startBtn">Play</button>
     <div class="topBtns">
+      <button class="gBtn secondary" id="leaderboardBtn">Leaderboards</button>
       <button class="gBtn secondary" id="profileBtn">Profile</button>
       <button class="gBtn secondary" id="logoutBtn">Log out</button>
     </div>
+  </div>
+  <div id="leaderboardScreen" style="display:none">
+    <h1>Leaderboard</h1>
+    <div class="lbTabs" id="lbTabs">
+      <button class="lbTab sel" data-tab="personal">My Climbs</button>
+      <button class="lbTab" data-tab="global">Global</button>
+    </div>
+    <div id="lbList"></div>
+    <button class="gBtn secondary" id="lbBack">Back</button>
   </div>
   <div id="gameOverScreen" style="display:none">
     <h1>You fell!</h1>
     <p id="finalScore">Height: 0m</p>
     <p id="finalCoins">Stars: 0</p>
-    <div class="histTitle">Best climbs</div>
+    <div class="lbTabs" id="goTabs">
+      <button class="lbTab sel" data-tab="personal">My Climbs</button>
+      <button class="lbTab" data-tab="global">Global</button>
+    </div>
     <div id="scoreHistory"></div>
     <button class="gBtn" id="restartBtn">Play again</button>
   </div>
@@ -210,28 +232,45 @@ function drawAvatar(ctx, x, y, w, h, a) {
 }
 let game, keys = {}, touchLeft = false, touchRight = false, touchJump = false;
 
-const SCORE_KEY = 'dld_scores';
-function loadScores() {
-  try { return JSON.parse(localStorage.getItem(SCORE_KEY)) || []; } catch (e) { return []; }
-}
-function recordScore(height, stars) {
-  const list = loadScores();
-  const entry = { height, stars, date: Date.now(), id: Date.now() + '-' + Math.random() };
-  list.push(entry);
-  list.sort((a, b) => b.height - a.height || b.stars - a.stars);
-  const top = list.slice(0, 10);
-  try { localStorage.setItem(SCORE_KEY, JSON.stringify(top)); } catch (e) {}
-  return { top, currentId: entry.id };
-}
-function renderHistory(top, currentId) {
-  const el = document.getElementById('scoreHistory');
-  if (!top.length) { el.innerHTML = '<div class="histEmpty">No climbs yet — this is your first!</div>'; return; }
-  el.innerHTML = top.map((s, i) => {
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderPersonal(el, scores, currentId) {
+  if (!scores.length) { el.innerHTML = '<div class="histEmpty">No climbs yet — this is your first!</div>'; return; }
+  el.innerHTML = scores.map((s, i) => {
     const d = new Date(s.date);
     const date = (d.getMonth() + 1) + '/' + d.getDate();
     const cls = s.id === currentId ? 'histRow current' : 'histRow';
     return `<div class="${cls}"><span class="rank">#${i+1}</span><span class="ht">${s.height}m</span><span class="st">★ ${s.stars}</span><span class="date">${date}</span></div>`;
   }).join('');
+}
+
+function renderGlobal(el, entries) {
+  if (!entries.length) { el.innerHTML = '<div class="histEmpty">No scores yet — be the first to climb!</div>'; return; }
+  el.innerHTML = entries.map((e, i) => {
+    const cls = e.isMe ? 'histRow current' : 'histRow';
+    const nm = e.name === 'Anonymous' ? '<span class="nm anon">Anonymous</span>' : `<span class="nm">${esc(e.name)}</span>`;
+    return `<div class="${cls}"><span class="rank">#${i+1}</span>${nm}<span class="st">★ ${e.stars}</span><span class="gh">${e.height}m</span></div>`;
+  }).join('');
+}
+
+// Tabbed board: tabsEl holds .lbTab[data-tab] buttons, listEl is the list.
+// personalData (optional) is {scores, currentId} from the just-finished run.
+async function showBoard(tabsEl, listEl, tab, personalData) {
+  tabsEl.querySelectorAll('.lbTab').forEach(b => b.classList.toggle('sel', b.dataset.tab === tab));
+  listEl.innerHTML = '<div class="histEmpty">Loading…</div>';
+  if (tab === 'personal') {
+    if (personalData) { renderPersonal(listEl, personalData.scores, personalData.currentId); return; }
+    const r = await api('/api/leaderboard/personal');
+    renderPersonal(listEl, (r.data && r.data.scores) || [], null);
+  } else {
+    const r = await api('/api/leaderboard/global');
+    renderGlobal(listEl, (r.data && r.data.entries) || []);
+  }
+}
+function wireTabs(tabsEl, listEl, getPersonalData) {
+  tabsEl.querySelectorAll('.lbTab').forEach(b => {
+    b.onclick = () => showBoard(tabsEl, listEl, b.dataset.tab, b.dataset.tab === 'personal' ? getPersonalData() : null);
+  });
 }
 
 function resize() {
@@ -342,13 +381,22 @@ function update() {
 
   if (p.y > H + 60) {
     game.alive = false;
-    document.getElementById('finalScore').textContent = `Height: ${game.maxHeight}m`;
-    document.getElementById('finalCoins').textContent = `Stars collected: ${game.coinCount}`;
-    const { top, currentId } = recordScore(game.maxHeight, game.coinCount);
-    renderHistory(top, currentId);
-    document.getElementById('gameButtons').style.display = 'none';
-    document.getElementById('gameOverScreen').style.display = 'flex';
+    endRun(game.maxHeight, game.coinCount);
   }
+}
+
+let lastRun = { scores: [], currentId: null };
+async function endRun(height, stars) {
+  document.getElementById('finalScore').textContent = `Height: ${height}m`;
+  document.getElementById('finalCoins').textContent = `Stars collected: ${stars}`;
+  document.getElementById('gameButtons').style.display = 'none';
+  document.getElementById('gameOverScreen').style.display = 'flex';
+  const goTabs = document.getElementById('goTabs');
+  const list = document.getElementById('scoreHistory');
+  list.innerHTML = '<div class="histEmpty">Saving…</div>';
+  const r = await api('/api/score', { height, stars });
+  lastRun = r.ok ? r.data : { scores: [], currentId: null };
+  showBoard(goTabs, list, 'personal', lastRun);
 }
 
 function lerpColor(a, b, t) {
@@ -478,7 +526,7 @@ async function api(path, body) {
 }
 
 // ---- Screen helpers ----
-const screens = ['authScreen', 'profileScreen', 'startScreen', 'gameOverScreen'];
+const screens = ['authScreen', 'profileScreen', 'startScreen', 'gameOverScreen', 'leaderboardScreen'];
 function showScreen(id) {
   screens.forEach(s => document.getElementById(s).style.display = (s === id ? 'flex' : 'none'));
   document.getElementById('gameButtons').style.display = id ? 'none' : 'flex';
@@ -531,8 +579,9 @@ document.getElementById('profileBtn').onclick = () => openProfile();
 document.getElementById('profileCancel').onclick = () => enterStartScreen();
 document.getElementById('profileSave').onclick = async () => {
   const username = document.getElementById('profileUser').value;
+  const showName = document.getElementById('profileShowName').checked;
   const err = document.getElementById('profileErr');
-  const { ok, data } = await api('/api/profile', { username, avatar: profileAvatar });
+  const { ok, data } = await api('/api/profile', { username, avatar: profileAvatar, showName });
   if (!ok) { err.textContent = data.error || 'Could not save.'; return; }
   currentUser = data;
   selectedAvatar = data.avatar;
@@ -544,6 +593,7 @@ document.getElementById('logoutBtn').onclick = () => doLogout();
 function openProfile() {
   profileAvatar = currentUser.avatar;
   document.getElementById('profileUser').value = currentUser.username;
+  document.getElementById('profileShowName').checked = currentUser.showName !== false;
   document.getElementById('profileErr').textContent = '';
   buildPicker(document.getElementById('profilePicker'), () => profileAvatar, i => profileAvatar = i);
   showScreen('profileScreen');
@@ -559,6 +609,16 @@ async function doLogout() {
 
 document.getElementById('gameProfileBtn').onclick = () => { if (game) game.alive = false; openProfile(); };
 document.getElementById('gameLogoutBtn').onclick = () => { if (game) game.alive = false; doLogout(); };
+
+// Leaderboard tabs
+wireTabs(document.getElementById('goTabs'), document.getElementById('scoreHistory'), () => lastRun);
+wireTabs(document.getElementById('lbTabs'), document.getElementById('lbList'), () => null);
+
+document.getElementById('leaderboardBtn').onclick = () => {
+  showScreen('leaderboardScreen');
+  showBoard(document.getElementById('lbTabs'), document.getElementById('lbList'), 'personal', null);
+};
+document.getElementById('lbBack').onclick = () => enterStartScreen();
 
 document.getElementById('startBtn').onclick = () => { initGame(); showScreen(''); };
 document.getElementById('restartBtn').onclick = () => enterStartScreen();

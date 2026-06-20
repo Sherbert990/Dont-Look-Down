@@ -70,7 +70,13 @@ function currentUser(req) {
   const users = loadUsers();
   const u = users[key];
   if (!u) return null;
-  return { token, key, username: u.username, avatar: u.avatar };
+  return { token, key, username: u.username, avatar: u.avatar, showName: u.showName !== false };
+}
+
+function bestRun(user) {
+  const runs = user.scores || [];
+  if (!runs.length) return null;
+  return runs.reduce((a, b) => (b.height > a.height || (b.height === a.height && b.stars > a.stars)) ? b : a);
 }
 
 async function handleApi(req, res, urlPath) {
@@ -85,7 +91,7 @@ async function handleApi(req, res, urlPath) {
     if (users[key]) return sendJson(res, 409, { error: 'That username is taken.' });
     const salt = crypto.randomBytes(16).toString('hex');
     const avatar = cleanAvatar(body.avatar);
-    users[key] = { username, hash: hashPassword(password, salt), salt, avatar };
+    users[key] = { username, hash: hashPassword(password, salt), salt, avatar, showName: true, scores: [] };
     saveUsers(users);
     const token = makeToken();
     sessions.set(token, key);
@@ -114,7 +120,7 @@ async function handleApi(req, res, urlPath) {
   if (urlPath === '/api/me' && req.method === 'GET') {
     const me = currentUser(req);
     if (!me) return sendJson(res, 401, { error: 'Not signed in.' });
-    return sendJson(res, 200, { username: me.username, avatar: me.avatar });
+    return sendJson(res, 200, { username: me.username, avatar: me.avatar, showName: me.showName });
   }
 
   if (urlPath === '/api/profile' && req.method === 'POST') {
@@ -130,13 +136,55 @@ async function handleApi(req, res, urlPath) {
     const record = users[me.key];
     record.username = username;
     record.avatar = avatar;
+    if (typeof body.showName === 'boolean') record.showName = body.showName;
     if (newKey !== me.key) {
       delete users[me.key];
       users[newKey] = record;
       for (const [tok, k] of sessions) if (k === me.key) sessions.set(tok, newKey);
     }
     saveUsers(users);
-    return sendJson(res, 200, { username, avatar });
+    return sendJson(res, 200, { username, avatar, showName: record.showName !== false });
+  }
+
+  if (urlPath === '/api/score' && req.method === 'POST') {
+    const me = currentUser(req);
+    if (!me) return sendJson(res, 401, { error: 'Not signed in.' });
+    const body = await readBody(req);
+    const height = Math.max(0, parseInt(body.height, 10) || 0);
+    const stars = Math.max(0, parseInt(body.stars, 10) || 0);
+    const users = loadUsers();
+    const record = users[me.key];
+    record.scores = record.scores || [];
+    const entry = { id: Date.now() + '-' + crypto.randomBytes(3).toString('hex'), height, stars, date: Date.now() };
+    record.scores.push(entry);
+    record.scores.sort((a, b) => b.height - a.height || b.stars - a.stars);
+    record.scores = record.scores.slice(0, 10);
+    saveUsers(users);
+    return sendJson(res, 200, { scores: record.scores, currentId: entry.id });
+  }
+
+  if (urlPath === '/api/leaderboard/personal' && req.method === 'GET') {
+    const me = currentUser(req);
+    if (!me) return sendJson(res, 401, { error: 'Not signed in.' });
+    const users = loadUsers();
+    return sendJson(res, 200, { scores: (users[me.key].scores || []) });
+  }
+
+  if (urlPath === '/api/leaderboard/global' && req.method === 'GET') {
+    const me = currentUser(req);
+    if (!me) return sendJson(res, 401, { error: 'Not signed in.' });
+    const users = loadUsers();
+    const entries = [];
+    for (const key of Object.keys(users)) {
+      const u = users[key];
+      const best = bestRun(u);
+      if (!best) continue;
+      const isMe = key === me.key;
+      const named = u.showName !== false || isMe;
+      entries.push({ name: named ? u.username : 'Anonymous', height: best.height, stars: best.stars, isMe });
+    }
+    entries.sort((a, b) => b.height - a.height || b.stars - a.stars);
+    return sendJson(res, 200, { entries: entries.slice(0, 20) });
   }
 
   return sendJson(res, 404, { error: 'Unknown endpoint.' });
