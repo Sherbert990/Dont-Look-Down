@@ -1,0 +1,13 @@
+{
+  "name": "dont-look-down",
+  "version": "1.0.0",
+  "description": "A browser-based platformer game inspired by Gimkit's Don't Look Down mode.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
