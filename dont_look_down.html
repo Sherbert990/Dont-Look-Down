@@ -49,7 +49,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let W = window.innerWidth, H = window.innerHeight;
 const GRAVITY = 0.45, JUMP = -10.5, SPEED = 4;
-const GAP = 78, ZONE = 50;
+const GAP = 78, ZONE_PX = 1000; // change vibe every 100 m (10 px = 1 m)
 const THEMES = [
   { bgTop:'#160d29', bgBottom:'#3b1d52', platforms:['#ff2e97','#c724b1','#7d2ae8','#2de2e6','#ff6ec7','#9b5de5','#f15bb5'] },
   { bgTop:'#2b0a0a', bgBottom:'#5e1a12', platforms:['#ff6b35','#f7c331','#ff3c38','#ffa630','#e8491d','#ffd23f'] },
@@ -57,9 +57,8 @@ const THEMES = [
   { bgTop:'#07223b', bgBottom:'#0d4a6e', platforms:['#48cae4','#0096c7','#90e0ef','#00b4d8','#caf0f8','#5fa8d3'] },
   { bgTop:'#2d0a1f', bgBottom:'#5e1840', platforms:['#ff5d8f','#ff99c8','#c44b9c','#ffb3c6','#e0457b','#ff7eb6'] },
 ];
-function themeColor(i) {
-  const t = THEMES[Math.floor(i / ZONE) % THEMES.length];
-  return t.platforms[i % t.platforms.length];
+function paletteFor(zone) {
+  return THEMES[((zone % THEMES.length) + THEMES.length) % THEMES.length].platforms;
 }
 let game, keys = {}, touchLeft = false, touchRight = false, touchJump = false;
 
@@ -77,7 +76,9 @@ function addPlatform() {
   let x, w, y;
   if (i === 0) { w = 160; x = W/2 - 80; y = H - 60; }
   else { w = 60 + Math.random() * 90; x = Math.random() * (W - w); y = game.topY - GAP; }
-  const pl = { x, y, w, h: 12, color: themeColor(i) };
+  const zone = Math.max(0, Math.floor((game.originY - y) / ZONE_PX));
+  const pal = paletteFor(zone);
+  const pl = { x, y, w, h: 12, color: pal[i % pal.length] };
   game.platforms.push(pl);
   if (i >= 3 && i % 2 === 1) game.coins.push({ x: pl.x + pl.w/2 - 8, y: pl.y - 28, collected: false });
   game.count = i + 1;
@@ -92,7 +93,7 @@ function initGame() {
   game = {
     player: { x: W/2-14, y: H-96, w: 28, h: 36, vx: 0, vy: 0, onGround: false, jumpsLeft: 2 },
     platforms: [], coins: [], cameraY: 0, maxHeight: 0, score: 0, coinCount: 0, alive: true,
-    count: 0, topY: 0
+    count: 0, topY: 0, originY: H * 0.4
   };
   ensurePlatforms();
 }
@@ -163,7 +164,7 @@ function lerpColor(a, b, t) {
 }
 
 function zoneBg() {
-  const zf = Math.max(0, (-game.cameraY) / (ZONE * GAP));
+  const zf = Math.max(0, (-game.cameraY) / ZONE_PX);
   const base = Math.floor(zf), frac = zf - base;
   const tt = frac > 0.8 ? (frac - 0.8) / 0.2 : 0;
   const a = THEMES[base % THEMES.length], b = THEMES[(base+1) % THEMES.length];
