@@ -12,6 +12,9 @@ body { background: #160d29; font-family: sans-serif; }
 canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 #ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
 #scoreDisplay { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(13,2,33,0.6); color: #2de2e6; padding: 6px 22px; border-radius: 20px; font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+#gameButtons { position: absolute; top: 12px; right: 12px; display: none; gap: 8px; pointer-events: auto; }
+.gameBtn { background: rgba(13,2,33,0.6); color: #c9a9ff; border: 1px solid rgba(155,93,229,0.5); border-radius: 14px; padding: 7px 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.gameBtn:hover { background: rgba(125,42,232,0.5); color: #fff; }
 #startScreen, #gameOverScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(13,2,33,0.9); color: #fff; z-index: 10; }
 #startScreen h1, #gameOverScreen h1 { font-size: 44px; font-weight: 700; margin-bottom: 12px; color: #ff2e97; text-shadow: 0 0 18px rgba(255,46,151,0.6); }
 #startScreen p, #gameOverScreen p { font-size: 18px; color: #c9a9ff; margin-bottom: 10px; }
@@ -53,6 +56,10 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 <div id="wrapper">
   <canvas id="gameCanvas" width="680" height="420"></canvas>
   <div id="ui"><div id="scoreDisplay">Height: 0m</div></div>
+  <div id="gameButtons">
+    <button class="gameBtn" id="gameProfileBtn">Profile</button>
+    <button class="gameBtn" id="gameLogoutBtn">Log out</button>
+  </div>
   <div id="authScreen">
     <h1>Don't Look Down</h1>
     <p id="authSubtitle">Sign in to start climbing</p>
@@ -339,6 +346,7 @@ function update() {
     document.getElementById('finalCoins').textContent = `Stars collected: ${game.coinCount}`;
     const { top, currentId } = recordScore(game.maxHeight, game.coinCount);
     renderHistory(top, currentId);
+    document.getElementById('gameButtons').style.display = 'none';
     document.getElementById('gameOverScreen').style.display = 'flex';
   }
 }
@@ -417,6 +425,18 @@ function draw() {
     ctx.fillStyle = 'rgba(45,226,230,0.5)'; ctx.beginPath(); ctx.arc(p.x+p.w/2, p.y+p.h/2, 18, 0, Math.PI*2); ctx.fill();
   }
   drawAvatar(ctx, p.x, p.y, p.w, p.h, AVATARS[selectedAvatar]);
+
+  if (currentUser) {
+    const name = currentUser.username;
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    const tw = ctx.measureText(name).width;
+    const lx = p.x + p.w / 2, ly = p.y - 14;
+    ctx.fillStyle = 'rgba(13,2,33,0.6)';
+    ctx.beginPath(); ctx.roundRect(lx - tw/2 - 6, ly - 11, tw + 12, 16, 8); ctx.fill();
+    ctx.fillStyle = '#2de2e6';
+    ctx.fillText(name, lx, ly + 1);
+  }
 }
 
 function loop() {
@@ -461,6 +481,7 @@ async function api(path, body) {
 const screens = ['authScreen', 'profileScreen', 'startScreen', 'gameOverScreen'];
 function showScreen(id) {
   screens.forEach(s => document.getElementById(s).style.display = (s === id ? 'flex' : 'none'));
+  document.getElementById('gameButtons').style.display = id ? 'none' : 'flex';
 }
 
 let currentUser = null; // { username, avatar }
@@ -506,13 +527,7 @@ document.getElementById('authPass').addEventListener('keydown', e => { if (e.key
 
 // ---- Profile screen ----
 let profileAvatar = 0;
-document.getElementById('profileBtn').onclick = () => {
-  profileAvatar = currentUser.avatar;
-  document.getElementById('profileUser').value = currentUser.username;
-  document.getElementById('profileErr').textContent = '';
-  buildPicker(document.getElementById('profilePicker'), () => profileAvatar, i => profileAvatar = i);
-  showScreen('profileScreen');
-};
+document.getElementById('profileBtn').onclick = () => openProfile();
 document.getElementById('profileCancel').onclick = () => enterStartScreen();
 document.getElementById('profileSave').onclick = async () => {
   const username = document.getElementById('profileUser').value;
@@ -524,14 +539,26 @@ document.getElementById('profileSave').onclick = async () => {
   enterStartScreen();
 };
 
-document.getElementById('logoutBtn').onclick = async () => {
+document.getElementById('logoutBtn').onclick = () => doLogout();
+
+function openProfile() {
+  profileAvatar = currentUser.avatar;
+  document.getElementById('profileUser').value = currentUser.username;
+  document.getElementById('profileErr').textContent = '';
+  buildPicker(document.getElementById('profilePicker'), () => profileAvatar, i => profileAvatar = i);
+  showScreen('profileScreen');
+}
+async function doLogout() {
   await api('/api/logout', {});
   currentUser = null;
   document.getElementById('authUser').value = '';
   document.getElementById('authPass').value = '';
   setAuthMode('login');
   showScreen('authScreen');
-};
+}
+
+document.getElementById('gameProfileBtn').onclick = () => { if (game) game.alive = false; openProfile(); };
+document.getElementById('gameLogoutBtn').onclick = () => { if (game) game.alive = false; doLogout(); };
 
 document.getElementById('startBtn').onclick = () => { initGame(); showScreen(''); };
 document.getElementById('restartBtn').onclick = () => enterStartScreen();
