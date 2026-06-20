@@ -61,6 +61,7 @@ const ctx = canvas.getContext('2d');
 let W = window.innerWidth, H = window.innerHeight;
 const GRAVITY = 0.45, JUMP = -10.5, SPEED = 4;
 const GAP = 78, ZONE_PX = 1000; // change vibe every 100 m (10 px = 1 m)
+const CRUMBLE_FRAMES = 42; // frames a crumbling platform lasts after first touch
 const THEMES = [
   { bgTop:'#160d29', bgBottom:'#3b1d52', platforms:['#ff2e97','#c724b1','#7d2ae8','#2de2e6','#ff6ec7','#9b5de5','#f15bb5'] },
   { bgTop:'#2b0a0a', bgBottom:'#5e1a12', platforms:['#ff6b35','#f7c331','#ff3c38','#ffa630','#e8491d','#ffd23f'] },
@@ -114,8 +115,15 @@ function addPlatform() {
   const zone = Math.max(0, Math.floor((game.originY - y) / ZONE_PX));
   const pal = paletteFor(zone);
   const pl = { x, y, w, h: 12, color: pal[i % pal.length] };
+  if (i >= 5) {
+    const r = Math.random();
+    if (r < 0.20) pl.vx = (0.7 + Math.random() * 1.1) * (Math.random() < 0.5 ? -1 : 1);
+    else if (r < 0.38) { pl.crumble = true; pl.timer = 0; }
+  }
   game.platforms.push(pl);
-  if (i >= 3 && i % 2 === 1) game.coins.push({ x: pl.x + pl.w/2 - 8, y: pl.y - 28, collected: false });
+  if (i >= 3 && i % 2 === 1 && !pl.vx && !pl.crumble) {
+    game.coins.push({ x: pl.x + pl.w/2 - 8, y: pl.y - 28, collected: false });
+  }
   game.count = i + 1;
   game.topY = y;
 }
@@ -154,11 +162,24 @@ function update() {
   if (p.x < 0) p.x = 0;
   if (p.x + p.w > W) p.x = W - p.w;
 
+  for (const pl of game.platforms) {
+    if (pl.vx) {
+      pl.x += pl.vx;
+      if (pl.x < 0) { pl.x = 0; pl.vx *= -1; }
+      else if (pl.x + pl.w > W) { pl.x = W - pl.w; pl.vx *= -1; }
+    }
+    if (pl.triggered && !pl.gone && ++pl.timer > CRUMBLE_FRAMES) pl.gone = true;
+    if (pl.gone) { pl.fallY = (pl.fallY || 0) + 0.6; pl.y += pl.fallY; }
+  }
+
   p.onGround = false;
   for (const pl of game.platforms) {
+    if (pl.gone) continue;
     const py = pl.y - game.cameraY;
     if (p.vy > 0 && p.x+p.w > pl.x && p.x < pl.x+pl.w && p.y+p.h > py && p.y+p.h < py+pl.h+14) {
       p.y = py - p.h; p.vy = 0; p.onGround = true; p.jumpsLeft = 2;
+      if (pl.vx) { p.x += pl.vx; if (p.x < 0) p.x = 0; if (p.x + p.w > W) p.x = W - p.w; }
+      if (pl.crumble) pl.triggered = true;
     }
   }
 
@@ -225,10 +246,31 @@ function draw() {
   for (const pl of game.platforms) {
     const py = pl.y - game.cameraY;
     if (py < -20 || py > H+20) continue;
+    let drawX = pl.x, alpha = 1;
+    if (pl.crumble) {
+      if (pl.gone) alpha = Math.max(0, 1 - (pl.fallY || 0) / 9);
+      else if (pl.triggered) { drawX += Math.sin(pl.timer * 0.9) * 2; alpha = 1 - (pl.timer / CRUMBLE_FRAMES) * 0.45; }
+    }
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = pl.color;
-    ctx.beginPath(); ctx.roundRect(pl.x, py, pl.w, pl.h, 4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(drawX, py, pl.w, pl.h, 4); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.fillRect(pl.x+4, py+2, pl.w-8, 3);
+    ctx.fillRect(drawX+4, py+2, pl.w-8, 3);
+    if (pl.crumble) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(drawX+pl.w*0.35, py); ctx.lineTo(drawX+pl.w*0.3, py+pl.h);
+      ctx.moveTo(drawX+pl.w*0.62, py); ctx.lineTo(drawX+pl.w*0.7, py+pl.h);
+      ctx.stroke();
+    }
+    if (pl.vx) {
+      const mid = drawX + pl.w/2, ay = py + pl.h/2, d = pl.vx > 0 ? 1 : -1;
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.beginPath();
+      ctx.moveTo(mid + d*5, ay); ctx.lineTo(mid - d*3, ay-3.5); ctx.lineTo(mid - d*3, ay+3.5);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   for (const c of game.coins) {
