@@ -35,19 +35,59 @@ canvas { display: block; width: 100%; height: 100%; background: #1a0b2e; }
 .avBtn:hover { background: rgba(125,42,232,0.32); }
 .avBtn.sel { border-color: #ff2e97; background: rgba(255,46,151,0.15); box-shadow: 0 0 12px rgba(255,46,151,0.5); }
 .avBtn canvas { display: block; }
+#authScreen, #profileScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(13,2,33,0.95); color: #fff; z-index: 12; overflow-y: auto; }
+#authScreen h1, #profileScreen h1 { font-size: 38px; font-weight: 700; margin-bottom: 6px; color: #ff2e97; text-shadow: 0 0 18px rgba(255,46,151,0.6); }
+#authScreen p, #profileScreen p { font-size: 16px; color: #c9a9ff; margin-bottom: 14px; }
+.field { width: 280px; max-width: 86vw; margin: 6px 0; }
+.field input { width: 100%; padding: 12px 14px; font-size: 16px; border-radius: 10px; border: 1px solid rgba(155,93,229,0.5); background: rgba(125,42,232,0.15); color: #fff; outline: none; }
+.field input:focus { border-color: #2de2e6; }
+.authErr { color: #ff6b6b; font-size: 14px; min-height: 18px; margin: 4px 0; text-align: center; }
+.linkBtn { background: none; border: none; color: #2de2e6; cursor: pointer; font-size: 14px; margin-top: 14px; text-decoration: underline; }
+.gBtn.secondary { background: rgba(125,42,232,0.35); box-shadow: none; padding: 11px 26px; font-size: 16px; }
+.gBtn.secondary:hover { background: rgba(125,42,232,0.55); }
+#startUser { font-size: 20px; color: #2de2e6; font-weight: 600; margin-bottom: 4px; }
+.topBtns { display: flex; gap: 10px; margin-top: 10px; }
 </style>
 </head>
 <body>
 <div id="wrapper">
   <canvas id="gameCanvas" width="680" height="420"></canvas>
   <div id="ui"><div id="scoreDisplay">Height: 0m</div></div>
-  <div id="startScreen">
+  <div id="authScreen">
     <h1>Don't Look Down</h1>
+    <p id="authSubtitle">Sign in to start climbing</p>
+    <div class="field"><input id="authUser" type="text" placeholder="Username" autocomplete="username" maxlength="20"></div>
+    <div class="field"><input id="authPass" type="password" placeholder="Password" autocomplete="current-password"></div>
+    <div id="authPickerWrap" style="display:none">
+      <div class="pickTitle">Choose your climber</div>
+      <div id="signupPicker"></div>
+    </div>
+    <div class="authErr" id="authErr"></div>
+    <button class="gBtn" id="authSubmit">Sign In</button>
+    <button class="linkBtn" id="authToggle">New here? Create an account</button>
+  </div>
+  <div id="profileScreen" style="display:none">
+    <h1>Profile</h1>
+    <p>Change your username or climber</p>
+    <div class="field"><input id="profileUser" type="text" placeholder="Username" maxlength="20"></div>
+    <div class="pickTitle">Your climber</div>
+    <div id="profilePicker"></div>
+    <div class="authErr" id="profileErr"></div>
+    <div class="topBtns">
+      <button class="gBtn secondary" id="profileCancel">Back</button>
+      <button class="gBtn" id="profileSave">Save</button>
+    </div>
+  </div>
+  <div id="startScreen" style="display:none">
+    <h1>Don't Look Down</h1>
+    <div id="startUser">Climbing as —</div>
     <p>Climb the platforms — collect stars — don't fall!</p>
     <p style="font-size:15px;color:#7d2ae8">Arrow keys / WASD to move &amp; jump</p>
-    <div class="pickTitle">Choose your climber</div>
-    <div id="avatarPicker"></div>
     <button class="gBtn" id="startBtn">Play</button>
+    <div class="topBtns">
+      <button class="gBtn secondary" id="profileBtn">Profile</button>
+      <button class="gBtn secondary" id="logoutBtn">Log out</button>
+    </div>
   </div>
   <div id="gameOverScreen" style="display:none">
     <h1>You fell!</h1>
@@ -94,7 +134,7 @@ const AVATARS = [
   { name:'Volt',  head:'#f72585', body:'#4361ee', legs:'#3a0ca3', shape:'square', face:'eyes',  hat:'headphones', hatColor:'#3a0ca3' },
 ];
 const AV_DARK = '#1a1030';
-let selectedAvatar = Math.min(9, Math.max(0, parseInt(localStorage.getItem('dld_avatar')) || 0));
+let selectedAvatar = 0;
 
 function drawHat(ctx, cx, cy, a) {
   const c = a.hatColor || a.legs;
@@ -384,37 +424,124 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-function buildAvatarPicker() {
-  const wrap = document.getElementById('avatarPicker');
-  wrap.innerHTML = '';
+// Builds avatar thumbnails into a container. `getSel` returns the current index,
+// `onPick` is called with the chosen index.
+function buildPicker(container, getSel, onPick) {
+  container.innerHTML = '';
   AVATARS.forEach((a, i) => {
     const btn = document.createElement('button');
-    btn.className = 'avBtn' + (i === selectedAvatar ? ' sel' : '');
+    btn.type = 'button';
+    btn.className = 'avBtn' + (i === getSel() ? ' sel' : '');
     btn.title = a.name;
     const cv = document.createElement('canvas');
     cv.width = 46; cv.height = 66;
     const c = cv.getContext('2d');
-    c.save();
-    c.translate(3.5, 11);
-    c.scale(1.4, 1.4);
+    c.save(); c.translate(3.5, 11); c.scale(1.4, 1.4);
     drawAvatar(c, 0, 0, 28, 36, a);
     c.restore();
     btn.appendChild(cv);
     btn.onclick = () => {
-      selectedAvatar = i;
-      localStorage.setItem('dld_avatar', i);
-      wrap.querySelectorAll('.avBtn').forEach((b, j) => b.classList.toggle('sel', j === i));
+      onPick(i);
+      container.querySelectorAll('.avBtn').forEach((b, j) => b.classList.toggle('sel', j === i));
     };
-    wrap.appendChild(btn);
+    container.appendChild(btn);
   });
 }
-buildAvatarPicker();
 
-document.getElementById('startBtn').onclick = () => { initGame(); document.getElementById('startScreen').style.display='none'; };
-document.getElementById('restartBtn').onclick = () => {
-  document.getElementById('gameOverScreen').style.display = 'none';
-  document.getElementById('startScreen').style.display = 'flex';
+async function api(path, body) {
+  const opts = { method: body ? 'POST' : 'GET', credentials: 'same-origin' };
+  if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+  const res = await fetch(path, opts);
+  let data = {};
+  try { data = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, data };
+}
+
+// ---- Screen helpers ----
+const screens = ['authScreen', 'profileScreen', 'startScreen', 'gameOverScreen'];
+function showScreen(id) {
+  screens.forEach(s => document.getElementById(s).style.display = (s === id ? 'flex' : 'none'));
+}
+
+let currentUser = null; // { username, avatar }
+
+function enterStartScreen() {
+  document.getElementById('startUser').textContent = 'Climbing as ' + currentUser.username;
+  showScreen('startScreen');
+}
+
+// ---- Auth screen ----
+let authMode = 'login'; // 'login' | 'signup'
+let signupAvatar = 0;
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === 'signup';
+  document.getElementById('authSubtitle').textContent = signup ? 'Create an account to start climbing' : 'Sign in to start climbing';
+  document.getElementById('authSubmit').textContent = signup ? 'Create Account' : 'Sign In';
+  document.getElementById('authToggle').textContent = signup ? 'Already have an account? Sign in' : 'New here? Create an account';
+  document.getElementById('authPickerWrap').style.display = signup ? 'block' : 'none';
+  document.getElementById('authPass').autocomplete = signup ? 'new-password' : 'current-password';
+  document.getElementById('authErr').textContent = '';
+  if (signup) buildPicker(document.getElementById('signupPicker'), () => signupAvatar, i => signupAvatar = i);
+}
+
+document.getElementById('authToggle').onclick = () => setAuthMode(authMode === 'login' ? 'signup' : 'login');
+
+document.getElementById('authSubmit').onclick = async () => {
+  const username = document.getElementById('authUser').value;
+  const password = document.getElementById('authPass').value;
+  const err = document.getElementById('authErr');
+  err.textContent = '';
+  const path = authMode === 'signup' ? '/api/register' : '/api/login';
+  const body = authMode === 'signup' ? { username, password, avatar: signupAvatar } : { username, password };
+  const { ok, data } = await api(path, body);
+  if (!ok) { err.textContent = data.error || 'Something went wrong.'; return; }
+  currentUser = data;
+  selectedAvatar = data.avatar;
+  document.getElementById('authPass').value = '';
+  enterStartScreen();
 };
+document.getElementById('authPass').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('authSubmit').click(); });
+
+// ---- Profile screen ----
+let profileAvatar = 0;
+document.getElementById('profileBtn').onclick = () => {
+  profileAvatar = currentUser.avatar;
+  document.getElementById('profileUser').value = currentUser.username;
+  document.getElementById('profileErr').textContent = '';
+  buildPicker(document.getElementById('profilePicker'), () => profileAvatar, i => profileAvatar = i);
+  showScreen('profileScreen');
+};
+document.getElementById('profileCancel').onclick = () => enterStartScreen();
+document.getElementById('profileSave').onclick = async () => {
+  const username = document.getElementById('profileUser').value;
+  const err = document.getElementById('profileErr');
+  const { ok, data } = await api('/api/profile', { username, avatar: profileAvatar });
+  if (!ok) { err.textContent = data.error || 'Could not save.'; return; }
+  currentUser = data;
+  selectedAvatar = data.avatar;
+  enterStartScreen();
+};
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await api('/api/logout', {});
+  currentUser = null;
+  document.getElementById('authUser').value = '';
+  document.getElementById('authPass').value = '';
+  setAuthMode('login');
+  showScreen('authScreen');
+};
+
+document.getElementById('startBtn').onclick = () => { initGame(); showScreen(''); };
+document.getElementById('restartBtn').onclick = () => enterStartScreen();
+
+setAuthMode('login');
+(async () => {
+  const { ok, data } = await api('/api/me');
+  if (ok) { currentUser = data; selectedAvatar = data.avatar; enterStartScreen(); }
+  else showScreen('authScreen');
+})();
 document.addEventListener('keydown', e => { keys[e.key]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault(); });
 document.addEventListener('keyup', e => { keys[e.key]=false; });
 
