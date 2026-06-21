@@ -326,10 +326,18 @@ function wireTabs(tabsEl, listEl, getPersonalData) {
 }
 
 function resize() {
-  W = window.innerWidth;
-  H = window.innerHeight;
+  // Fall back through every size source so W/H are never 0 — some hosts
+  // (embedded views, pre-layout loads) report a 0-size viewport, which would
+  // spawn the player off-screen at the far-left edge and break platform layout.
+  W = window.innerWidth || document.documentElement.clientWidth || canvas.clientWidth || 680;
+  H = window.innerHeight || document.documentElement.clientHeight || canvas.clientHeight || 420;
   canvas.width = W;
   canvas.height = H;
+  // If a run hasn't started moving yet, re-center the idle player on the
+  // starting platform so a late-arriving real viewport size still plays right.
+  if (game && game.player && game.maxHeight <= game.heightBonus) {
+    game.player.x = W/2 - game.player.w/2;
+  }
 }
 window.addEventListener('resize', resize);
 resize();
@@ -834,14 +842,26 @@ setAuthMode('login');
 })();
 document.addEventListener('keydown', e => { keys[e.key]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault(); });
 document.addEventListener('keyup', e => { keys[e.key]=false; });
+// Clear all held inputs when the window loses focus, so an alt-tab mid-press
+// can't leave a key/button stuck and shove the player into a wall.
+function clearTouch() { touchLeft = touchRight = touchJump = false; }
+function clearInputs() { keys = {}; clearTouch(); }
+window.addEventListener('blur', clearInputs);
 
 const lb=document.getElementById('leftBtn'), rb=document.getElementById('rightBtn'), jb=document.getElementById('jumpBtn');
-lb.addEventListener('touchstart',e=>{touchLeft=true;e.preventDefault();},{passive:false}); lb.addEventListener('touchend',()=>touchLeft=false);
-rb.addEventListener('touchstart',e=>{touchRight=true;e.preventDefault();},{passive:false}); rb.addEventListener('touchend',()=>touchRight=false);
-jb.addEventListener('touchstart',e=>{touchJump=true;e.preventDefault();},{passive:false}); jb.addEventListener('touchend',()=>touchJump=false);
-lb.addEventListener('mousedown',()=>touchLeft=true); lb.addEventListener('mouseup',()=>touchLeft=false);
-rb.addEventListener('mousedown',()=>touchRight=true); rb.addEventListener('mouseup',()=>touchRight=false);
-jb.addEventListener('mousedown',()=>touchJump=true); jb.addEventListener('mouseup',()=>touchJump=false);
+// Press starts on the button; release is bound GLOBALLY so lifting the
+// mouse/finger anywhere (even off the button) always clears the flag.
+// Otherwise a release outside the button leaves it stuck → endless push.
+function bindCtrl(el, set) {
+  el.addEventListener('touchstart', e => { set(true); e.preventDefault(); }, {passive:false});
+  el.addEventListener('mousedown', e => { set(true); e.preventDefault(); });
+}
+bindCtrl(lb, v => touchLeft = v);
+bindCtrl(rb, v => touchRight = v);
+bindCtrl(jb, v => touchJump = v);
+window.addEventListener('mouseup', clearTouch);
+window.addEventListener('touchend', clearTouch);
+window.addEventListener('touchcancel', clearTouch);
 
 initGame(); loop();
 </script>
